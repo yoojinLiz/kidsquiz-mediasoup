@@ -34,8 +34,8 @@ const options = {
 }
 
 const httpsServer = https.createServer(options, app)
-httpsServer.listen(3000, () => {
-  console.log('listening on port: ' + 3000)
+httpsServer.listen(3001, () => {
+  console.log('listening on port: ' + 3001)
 })
 
 const io = new Server(httpsServer)
@@ -151,7 +151,7 @@ connections.on('connection', async socket => {
         isAdmin: false,   // Is this Peer the Admin?
       }
     }
-
+    console.log("producerName🍎🍎🍎",peers[socket.id].peerDetails.name)
     // get Router RTP Capabilities
     const rtpCapabilities = router1.rtpCapabilities
 
@@ -343,7 +343,7 @@ connections.on('connection', async socket => {
 
       const { roomName } = peers[socket.id]
       const  userName  = peers[socket.id].peerDetails.name
-      console.log("userNAme! 🎉🎉🎉🎉", userName)
+      console.log("userName! 🎉🎉🎉🎉", userName)
 
 
       const router = rooms[roomName].router

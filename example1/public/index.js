@@ -17,8 +17,8 @@ let producerTransport
 let consumerTransports = []
 let audioProducer
 let videoProducer
-let consumer
-let isProducer = false
+// let consumer
+// let isProducer = false
 let myStream; 
 
 //! 로컬스토리지 이름 가져오는 부분! 
@@ -56,9 +56,9 @@ let audioParams;
 let videoParams = { params };
 let consumingTransports = [];
 
-
 // 성공적으로 미디어를 가져온 경우에 실행됨 
 const streamSuccess = (stream) => {
+  console.dir(localVideo);
   localVideo.srcObject = stream
   myStream = stream;
  //! ... 문법은 audioParams, videoParams의 주소가 아닌 '값'만 가져온다는 의미! 
@@ -99,6 +99,7 @@ const getLocalStream = () => {
     console.log(error.message)
   })
 }
+
 
 // A device is an endpoint connecting to a Router on the
 // server side to send/recive media
@@ -276,6 +277,7 @@ const signalNewConsumerTransport = async (remoteProducerId) => {
 }
 
 // server informs the client of a new producer just joined
+// 새로운 producer가 있다고 서버가 알려주는 경우! 
 socket.on('new-producer', ({ producerId }) => signalNewConsumerTransport(producerId))
 
 const getProducers = () => {
@@ -309,9 +311,11 @@ const connectRecvTransport = async (consumerTransport, remoteProducerId, serverC
       producerId: params.producerId,
       kind: params.kind,
       rtpParameters: params.rtpParameters,
-      consumerName : params.userName
+      producerName : params.userName
     })
-    console.log("🔔", params.userName)
+    let producerName = params.userName
+    console.log("producerName🍎🍎🍎",producerName)
+
 
     consumerTransports = [
       ...consumerTransports,
@@ -336,9 +340,9 @@ const connectRecvTransport = async (consumerTransport, remoteProducerId, serverC
     } else {
       //append to the video container
       newElem.setAttribute('class', 'remoteVideo')
-      newElem.innerHTML = '<video id="' + remoteProducerId + '" autoplay class="video" ></video>'
+      newElem.innerHTML = '<video id="'+ remoteProducerId+ '" autoplay class="video" ></video> <p>'+ producerName +'</p>'
     }
-    newSpan.innerText = userName
+
 
     // videoContainer.appendChild(newElem)
     // videoContainer.appendChild(newSpan)
@@ -384,6 +388,7 @@ const cameraIcon = document.getElementById("cameraIcon");
 let muted = false;
 let cameraOff = false;
 
+console.dir("myName 🔔🔔🔔",myName);
 myName.innerText = userName
 function handleMuteClick() {
   myStream
