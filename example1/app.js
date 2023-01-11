@@ -4,6 +4,8 @@
 
 /* Please follow mediasoup installation requirements */
 /* https://mediasoup.org/documentation/v3/mediasoup/installation/ */
+
+
 import express from 'express'
 const app = express()
 import https from 'httpolyglot';
@@ -13,17 +15,16 @@ const __dirname = path.resolve()
 
 import { Server } from 'socket.io'
 import mediasoup from 'mediasoup'
+import { captureRejectionSymbol } from 'events';
 
-app.get('*', (req, res, next) => {
-  // const path = '/sfu/'
-  const path = '/sfu/'
 
-  if (req.path.indexOf(path) == 0 && req.path.length > path.length) return next()
-
-  res.send(`You need to specify a room name in the path e.g. 'https://127.0.0.1/sfu/room'`)
+app.get('/login', (req, res, next) => {
+  // const path = '/live/'
+  // if (req.path.indexOf(path) == 0 && req.path.length > path.length) return next()
+  res.sendFile(__dirname +"/public/login.html");
 })
 
-app.use('/sfu/:room', express.static(path.join(__dirname, 'public')))
+app.use('/live/:room', express.static(path.join(__dirname, 'public')))
 
 // SSL cert for HTTPS access
 //! 아래 정보가 있어야 https 로 접속이 가능 
@@ -57,6 +58,7 @@ let peers = {}          // { socketId1: { roomName1, socket, transports = [id1, 
 let transports = []     // [ { socketId1, roomName1, transport, consumer }, ... ]
 let producers = []      // [ { socketId1, roomName1, producer, }, ... ]
 let consumers = []      // [ { socketId1, roomName1, consumer, }, ... ]
+
 
 //! 가장 먼저해야 하는 작업 : worker를 생성하는 것 :-) worker가 있어야 router도 transport도 생성할 수 있다. 
 const createWorker = async () => {
@@ -133,7 +135,7 @@ connections.on('connection', async socket => {
     }
   })
 
-  socket.on('joinRoom', async ({ roomName }, callback) => {
+  socket.on('joinRoom', async ({ roomName, userName }, callback) => {
     // create Router if it does not exist
     // const router1 = rooms[roomName] && rooms[roomName].get('data').router || await createRoom(roomName, socket.id)
     const router1 = await createRoom(roomName, socket.id)
@@ -145,7 +147,7 @@ connections.on('connection', async socket => {
       producers: [],
       consumers: [],
       peerDetails: {
-        name: '',
+        name: userName,
         isAdmin: false,   // Is this Peer the Admin?
       }
     }
@@ -182,26 +184,6 @@ connections.on('connection', async socket => {
     return router1
   }
 
-  // socket.on('createRoom', async (callback) => {
-  //   if (router === undefined) {
-  //     // worker.createRouter(options)
-  //     // options = { mediaCodecs, appData }
-  //     // mediaCodecs -> defined above
-  //     // appData -> custom application data - we are not supplying any
-  //     // none of the two are required
-  //     router = await worker.createRouter({ mediaCodecs, })
-  //     console.log(`Router ID: ${router.id}`)
-  //   }
-
-  //   getRtpCapabilities(callback)
-  // })
-
-  // const getRtpCapabilities = (callback) => {
-  //   const rtpCapabilities = router.rtpCapabilities
-
-  //   callback({ rtpCapabilities })
-  // }
-
   // Client emits a request to create server side Transport
   // We need to differentiate between the producer and consumer transports
   socket.on('createWebRtcTransport', async ({ consumer }, callback) => {
@@ -210,7 +192,6 @@ connections.on('connection', async socket => {
 
     // get Router (Room) object this peer is in based on RoomName
     const router = rooms[roomName].router
-
 
     createWebRtcTransport(router).then(
       transport => {
@@ -361,6 +342,10 @@ connections.on('connection', async socket => {
     try {
 
       const { roomName } = peers[socket.id]
+      const  userName  = peers[socket.id].peerDetails.name
+      console.log("userNAme! 🎉🎉🎉🎉", userName)
+
+
       const router = rooms[roomName].router
       let consumerTransport = transports.find(transportData => (
         transportData.consumer && transportData.transport.id == serverConsumerTransportId
@@ -403,6 +388,7 @@ connections.on('connection', async socket => {
           kind: consumer.kind,
           rtpParameters: consumer.rtpParameters,
           serverConsumerId: consumer.id,
+          userName:userName,  //!!!!!
         }
 
         // send the parameters to the client
@@ -462,3 +448,4 @@ const createWebRtcTransport = async (router) => {
     }
   })
 }
+

@@ -19,6 +19,11 @@ let audioProducer
 let videoProducer
 let consumer
 let isProducer = false
+let myStream; 
+
+//! 로컬스토리지 이름 가져오는 부분! 
+const userName = window.localStorage.getItem('userName');
+console.log("username!!🚀🚀 ", userName);
 
 // https://mediasoup.org/documentation/v3/mediasoup-client/api/#ProducerOptions
 // https://mediasoup.org/documentation/v3/mediasoup-client/api/#transport-produce
@@ -51,18 +56,19 @@ let audioParams;
 let videoParams = { params };
 let consumingTransports = [];
 
+
 // 성공적으로 미디어를 가져온 경우에 실행됨 
 const streamSuccess = (stream) => {
   localVideo.srcObject = stream
+  myStream = stream;
  //! ... 문법은 audioParams, videoParams의 주소가 아닌 '값'만 가져온다는 의미! 
   audioParams = { track: stream.getAudioTracks()[0], ...audioParams };
   videoParams = { track: stream.getVideoTracks()[0], ...videoParams };
-
   joinRoom()
 }
 
 const joinRoom = () => {
-  socket.emit('joinRoom', { roomName }, (data) => {
+  socket.emit('joinRoom', { roomName, userName }, (data) => {
     console.log(`Router RTP Capabilities... ${data.rtpCapabilities}`)
     // we assign to local variable and will be used when
     // loading the client Device (see createDevice above)
@@ -73,8 +79,9 @@ const joinRoom = () => {
   })
 }
 
+let userDevice;
 const getLocalStream = () => {
-  navigator.mediaDevices.getUserMedia({
+  userDevice = navigator.mediaDevices.getUserMedia({
     audio: true,
     video: {
       width: {
@@ -301,8 +308,10 @@ const connectRecvTransport = async (consumerTransport, remoteProducerId, serverC
       id: params.id,
       producerId: params.producerId,
       kind: params.kind,
-      rtpParameters: params.rtpParameters
+      rtpParameters: params.rtpParameters,
+      consumerName : params.userName
     })
+    console.log("🔔", params.userName)
 
     consumerTransports = [
       ...consumerTransports,
@@ -315,8 +324,11 @@ const connectRecvTransport = async (consumerTransport, remoteProducerId, serverC
     ]
 
     // create a new div element for the new consumer media
-    const newElem = document.createElement('div')
-    newElem.setAttribute('id', `td-${remoteProducerId}`)
+    const wrapper = document.createElement('div') 
+    const newElem = document.createElement('div') // 비디오 화면
+    const newSpan = document.createElement('span')
+    // newElem.setAttribute('id', `td-${remoteProducerId}`)
+    wrapper.setAttribute('id', `td-${remoteProducerId}`)
 
     if (params.kind == 'audio') {
       //append to the audio container
@@ -326,13 +338,20 @@ const connectRecvTransport = async (consumerTransport, remoteProducerId, serverC
       newElem.setAttribute('class', 'remoteVideo')
       newElem.innerHTML = '<video id="' + remoteProducerId + '" autoplay class="video" ></video>'
     }
+    newSpan.innerText = userName
 
-    videoContainer.appendChild(newElem)
+    // videoContainer.appendChild(newElem)
+    // videoContainer.appendChild(newSpan)
+
+    wrapper.appendChild(newElem)
+    wrapper.appendChild(newSpan)
+    videoContainer.appendChild(wrapper)
 
     // destructure and retrieve the video track from the producer
     const { track } = consumer
 
     document.getElementById(remoteProducerId).srcObject = new MediaStream([track])
+
 
     // the server consumer started with media paused
     // so we need to inform the server to resume
@@ -355,6 +374,9 @@ socket.on('producer-closed', ({ remoteProducerId }) => {
 })
 
 
+//! DOM 코드 
+
+const myName = document.getElementById("userName"); 
 const muteBtn = document.getElementById("mute"); 
 const muteIcon = document.getElementById("muteIcon"); 
 const cameraBtn = document.getElementById("camera");
@@ -362,10 +384,11 @@ const cameraIcon = document.getElementById("cameraIcon");
 let muted = false;
 let cameraOff = false;
 
+myName.innerText = userName
 function handleMuteClick() {
-  // myStream
-  // .getAudioTracks()
-  // .forEach((track) => (track.enabled = !track.enabled)); // 오디오 요소를 키고 끄기
+  myStream
+  .getAudioTracks()
+  .forEach((track) => (track.enabled = !track.enabled)); // 오디오 요소를 키고 끄기
   if (!muted) { // mute가 아닌 상태라면 (초기 상태)
     // muteBtn.innerText = "Unmute";
     muted = true;
@@ -381,9 +404,9 @@ function handleMuteClick() {
 }
 
 function handleCameraClick() {
-  // myStream
-  // .getVideoTracks()
-  // .forEach((track) => (track.enabled = !track.enabled)); // 카메라 화면 요소를 키고 끄기 
+  myStream
+  .getVideoTracks()
+  .forEach((track) => (track.enabled = !track.enabled)); // 카메라 화면 요소를 키고 끄기 
   if (!cameraOff) { // 카메라가 켜진 상태라면 (초기 상태)
     cameraOff = true;
     cameraIcon.classList.remove('fa-video');
@@ -396,7 +419,7 @@ function handleCameraClick() {
   }
 }
 
+
 muteBtn.addEventListener("click", handleMuteClick);
 cameraBtn.addEventListener("click", handleCameraClick);
-camerasSelect.addEventListener("input", handleCameraChange); // 선택하는 카메라가 바뀔때마다 스트림 새로 받아오게 함
 
