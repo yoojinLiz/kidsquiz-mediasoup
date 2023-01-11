@@ -3,13 +3,8 @@ const io = require('socket.io-client')
 const mediasoupClient = require('mediasoup-client')
 
 const roomName = window.location.pathname.split('/')[2]
-
 const socket = io("/mediasoup")
-
-socket.on('connection-success', ({ socketId }) => {
-  console.log(socketId)
-  getLocalStream()
-})
+// console.log("내가 소켓이다! 🚀🚀🚀 ", socket)
 
 let device
 let rtpCapabilities
@@ -17,16 +12,13 @@ let producerTransport
 let consumerTransports = []
 let audioProducer
 let videoProducer
-// let consumer
-// let isProducer = false
 let myStream; 
 
 //! 로컬스토리지 이름 가져오는 부분! 
 const userName = window.localStorage.getItem('userName');
-console.log("username!!🚀🚀 ", userName);
+socket[userName]= userName;
+console.log("username!!🚀🚀 ", socket[userName]);
 
-// https://mediasoup.org/documentation/v3/mediasoup-client/api/#ProducerOptions
-// https://mediasoup.org/documentation/v3/mediasoup-client/api/#transport-produce
 let params = {
   // mediasoup params
   encodings: [
@@ -46,40 +38,18 @@ let params = {
       scalabilityMode: 'S1T3',
     },
   ],
-  // https://mediasoup.org/documentation/v3/mediasoup-client/api/#ProducerCodecOptions
   codecOptions: {
     videoGoogleStartBitrate: 1000
   }
 }
 
-let audioParams;
-let videoParams = { params };
-let consumingTransports = [];
+//! 1.가장 먼저 실행되는 함수 ( io()로 서버에 소켓 연결이 되면 서버의 emit에 의해 가장 먼저 호출된다. )
+socket.on('connection-success', ({ socketId }) => {
+  console.log("connection-succes 이벤트 발생. 나의 socketID는 : ", socketId)
+  getLocalStream()
+})
 
-// 성공적으로 미디어를 가져온 경우에 실행됨 
-const streamSuccess = (stream) => {
-  console.dir(localVideo);
-  localVideo.srcObject = stream
-  myStream = stream;
- //! ... 문법은 audioParams, videoParams의 주소가 아닌 '값'만 가져온다는 의미! 
-  audioParams = { track: stream.getAudioTracks()[0], ...audioParams };
-  videoParams = { track: stream.getVideoTracks()[0], ...videoParams };
-  joinRoom()
-}
-
-const joinRoom = () => {
-  socket.emit('joinRoom', { roomName, userName }, (data) => {
-    console.log(`Router RTP Capabilities... ${data.rtpCapabilities}`)
-    // we assign to local variable and will be used when
-    // loading the client Device (see createDevice above)
-    rtpCapabilities = data.rtpCapabilities
-
-    // once we have rtpCapabilities from the Router, create Device
-    createDevice()
-  })
-}
-
-let userDevice;
+//! 2. 1번에서 호출되어 두번째로 실행되는 함수 
 const getLocalStream = () => {
   userDevice = navigator.mediaDevices.getUserMedia({
     audio: true,
@@ -100,9 +70,39 @@ const getLocalStream = () => {
   })
 }
 
+let audioParams;
+let videoParams = { params };
+let consumingTransports = [];
+
+// 성공적으로 미디어를 가져온 경우에 실행됨 
+//!3. 2번에서 성공적으로 미디어를 가져오면 실행되는 함수 
+const streamSuccess = (stream) => {
+  console.dir(localVideo);
+  localVideo.srcObject = stream
+  myStream = stream;
+ //! ... 문법은 audioParams, videoParams의 주소가 아닌 '값'만 가져온다는 의미! 
+  audioParams = { track: stream.getAudioTracks()[0], ...audioParams };
+  videoParams = { track: stream.getVideoTracks()[0], ...videoParams };
+  joinRoom()
+}
+
+//! 4. 3번에서 유저 미디어를 잘 받아서 비디오로 송출한 후에 호출되는 함수. 이 함수를 통해 실제 room에 조인하게 된다.  
+const joinRoom = () => {
+  socket.emit('joinRoom', { roomName, userName }, (data) => {
+    console.log(`Router RTP Capabilities... ${data.rtpCapabilities}`)
+    // we assign to local variable and will be used when loading the client Device (see createDevice above)
+    rtpCapabilities = data.rtpCapabilities
+
+    // once we have rtpCapabilities from the Router, create Device
+    createDevice()
+  })
+}
+
+let userDevice;
 
 // A device is an endpoint connecting to a Router on the
 // server side to send/recive media
+//! 5. 4번에서 room에 조인하고 router rtpCapabilities를 받아온 후 실행되는 함수. Device 객체를 생성한다. 
 const createDevice = async () => {
   try {
     device = new mediasoupClient.Device()
@@ -126,6 +126,7 @@ const createDevice = async () => {
   }
 }
 
+//! 6. 5번에서 Device 객체를 생성하고나서 호출되느 함수. 비디오를 송출하기 위해 클라이언트 측 SEND Transport 를 생성한다. 
 const createSendTransport = () => {
   // see server's socket.on('createWebRtcTransport', sender?, ...)
   // this is a call from Producer, so sender = true
@@ -196,6 +197,7 @@ const createSendTransport = () => {
   })
 }
 
+//! 7. 6번에서 SEND transport를 생성한 후 connect 하기 위해 호출되는 함수   
 const connectSendTransport = async () => {
   // we now call produce() to instruct the producer transport
   // to send media to the Router
@@ -230,7 +232,21 @@ const connectSendTransport = async () => {
   })
 }
 
-const signalNewConsumerTransport = async (remoteProducerId) => {
+//! 8 6번에서 방에 입장했을 때 이미 다른 참여자들이 있는 경우 실행됨 
+const getProducers = () => {
+  socket.emit('getProducers', producerIds => {
+    // console.log("중요해.. producerIds...", producerIds)
+    // for each of the producer create a consumer
+    producerIds.forEach(id => {
+      // console.log("얍!", id);
+      signalNewConsumerTransport(id[0], id[1])}) //아래 코드랑 똑같은 의미! 
+    // producerIds.forEach(signalNewConsumerTransport)
+  })
+}
+
+
+//! 새 참여자 발생시 또는 8번에서 호출됨   1. ** 정해진 순서는 없고, new-producer 이벤트가 발생하면 호출되는 함수  
+const signalNewConsumerTransport = async (remoteProducerId, socketName) => {
   //check if we are already consuming the remoteProducerId
   if (consumingTransports.includes(remoteProducerId)) return;
   consumingTransports.push(remoteProducerId);
@@ -271,25 +287,19 @@ const signalNewConsumerTransport = async (remoteProducerId) => {
         errback(error)
       }
     })
-
-    connectRecvTransport(consumerTransport, remoteProducerId, params.id)
+    console.log("석규오빠 요청~👻", socket)
+    connectRecvTransport(consumerTransport, remoteProducerId, params.id, socketName)
   })
 }
 
 // server informs the client of a new producer just joined
 // 새로운 producer가 있다고 서버가 알려주는 경우! 
-socket.on('new-producer', ({ producerId }) => signalNewConsumerTransport(producerId))
+socket.on('new-producer', ({ producerId, socketName }) => signalNewConsumerTransport(producerId, socketName))
 
-const getProducers = () => {
-  socket.emit('getProducers', producerIds => {
-    console.log(producerIds)
-    // for each of the producer create a consumer
-    // producerIds.forEach(id => signalNewConsumerTransport(id)) 아래 코드랑 똑같은 의미! 
-    producerIds.forEach(signalNewConsumerTransport)
-  })
-}
 
-const connectRecvTransport = async (consumerTransport, remoteProducerId, serverConsumerTransportId) => {
+
+//!새 참여자 발생시 2. 1번함수에서 호출되는 함수 -> 여기서 실질적으로 새로운 html 요소가 만들어지고 비디오 스트림을 받아옴 
+const connectRecvTransport = async (consumerTransport, remoteProducerId, serverConsumerTransportId, socketName) => {
   // for consumer, we need to tell the server first
   // to create a consumer based on the rtpCapabilities and consume
   // if the router can consume, it will send back a set of params as below
@@ -310,12 +320,8 @@ const connectRecvTransport = async (consumerTransport, remoteProducerId, serverC
       id: params.id,
       producerId: params.producerId,
       kind: params.kind,
-      rtpParameters: params.rtpParameters,
-      producerName : params.userName
+      rtpParameters: params.rtpParameters
     })
-    let producerName = params.userName
-    console.log("producerName🍎🍎🍎",producerName)
-
 
     consumerTransports = [
       ...consumerTransports,
@@ -340,7 +346,7 @@ const connectRecvTransport = async (consumerTransport, remoteProducerId, serverC
     } else {
       //append to the video container
       newElem.setAttribute('class', 'remoteVideo')
-      newElem.innerHTML = '<video id="'+ remoteProducerId+ '" autoplay class="video" ></video> <p>'+ producerName +'</p>'
+      newElem.innerHTML = '<video id="'+ remoteProducerId+ '" autoplay class="video" ></video> <p>'+ socketName +'</p>'
     }
 
 
@@ -363,6 +369,7 @@ const connectRecvTransport = async (consumerTransport, remoteProducerId, serverC
   })
 }
 
+//! 누군가가 연결 종료될 때 발생 -> 해당 비디오 요소가 제거된다. 
 socket.on('producer-closed', ({ remoteProducerId }) => {
   // server notification is received when a producer is closed
   // we need to close the client-side consumer and associated transport
@@ -423,7 +430,6 @@ function handleCameraClick() {
     cameraIcon.classList.add('fa-video');
   }
 }
-
 
 muteBtn.addEventListener("click", handleMuteClick);
 cameraBtn.addEventListener("click", handleCameraClick);

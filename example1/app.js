@@ -151,7 +151,7 @@ connections.on('connection', async socket => {
         isAdmin: false,   // Is this Peer the Admin?
       }
     }
-    console.log("producerName🍎🍎🍎",peers[socket.id].peerDetails.name)
+
     // get Router RTP Capabilities
     const rtpCapabilities = router1.rtpCapabilities
 
@@ -231,14 +231,13 @@ connections.on('connection', async socket => {
   const addProducer = (producer, roomName) => {
     producers = [
       ...producers,
-      { socketId: socket.id, producer, roomName, }
+      { socketId: socket.id, producer, roomName, name: peers[socket.id].peerDetails.name}
     ]
-
     peers[socket.id] = {
       ...peers[socket.id],
       producers: [
         ...peers[socket.id].producers,
-        producer.id,
+        producer.id
       ]
     }
   }
@@ -259,15 +258,19 @@ connections.on('connection', async socket => {
       ]
     }
   }
-
+  
   socket.on('getProducers', callback => {
     //return all producer transports
     const { roomName } = peers[socket.id]
+    const socketName = peers[socket.id].peerDetails.name
 
     let producerList = []
+  
     producers.forEach(producerData => {
       if (producerData.socketId !== socket.id && producerData.roomName === roomName) {
-        producerList = [...producerList, producerData.producer.id]
+        console.log("🧐🧐producerList 전", producerList)
+        producerList = [...producerList, [producerData.producer.id, peers[producerData.socketId].peerDetails.name]]
+        
       }
     })
 
@@ -283,7 +286,8 @@ connections.on('connection', async socket => {
       if (producerData.socketId !== socketId && producerData.roomName === roomName) {
         const producerSocket = peers[producerData.socketId].socket
         // use socket to send producer id to producer
-        producerSocket.emit('new-producer', { producerId: id })
+        const socketName = peers[socketId].peerDetails.name
+        producerSocket.emit('new-producer', { producerId: id , socketName: socketName })
       }
     })
   }
